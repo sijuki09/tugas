@@ -1,38 +1,52 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdbool.h>
 
-int is_prime(int n) {
-    if (n <= 1) return 0; 
-    for (int i = 2; i * i <= n; ++i) {
-        if (n % i == 0) return 0; 
-    }
-    return 1; 
-}
+#define MAX 100
 
+typedef struct {
+    int num;
+    bool is_prime;
+} prime_check_t;
 
 void *check_prime(void *arg) {
-    int num = *((int*)arg);
-    if (is_prime(num)) {
-        printf("%d prima\n", num);
+    prime_check_t *data = (prime_check_t *)arg;
+    int num = data->num;
+    data->is_prime = true;
+
+    if (num <= 1) {
+        data->is_prime = false;
     } else {
-        printf("%d bukan prima\n", num);
+        for (int i = 2; i * i <= num; i++) {
+            if (num % i == 0) {
+                data->is_prime = false;
+                break;
+            }
+        }
     }
-    pthread_exit(NULL);
+
+    pthread_exit(0);
 }
 
 int main(int argc, char *argv[]) {
-    
-    pthread_t threads[argc - 1];
-
-    for (int i = 1; i < argc; ++i) {
-        int num = atoi(argv[i]);
-        pthread_create(&threads[i - 1], NULL, check_prime, (void*)&num);
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <numbers>\n", argv[0]);
+        return 1;
     }
 
-    
-    for (int i = 0; i < argc - 1; ++i) {
+    int num_threads = argc - 1;
+    pthread_t threads[num_threads];
+    prime_check_t prime_data[num_threads];
+
+    for (int i = 0; i < num_threads; i++) {
+        prime_data[i].num = atoi(argv[i + 1]);
+        pthread_create(&threads[i], NULL, check_prime, &prime_data[i]);
+    }
+
+    for (int i = 0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
+        printf("%d %s\n", prime_data[i].num, prime_data[i].is_prime ? "prima" : "bukan prima");
     }
 
     return 0;
