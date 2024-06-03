@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <string.h>
 
+// Fungsi untuk menghapus file dengan ekstensi .trash di direktori /tmp/trash
 void delete_trash_files(const char *path) {
     struct dirent *entry;
     DIR *dp = opendir(path);
@@ -37,27 +38,33 @@ void delete_trash_files(const char *path) {
 int main() {
     pid_t pid, sid;
 
+    // Fork the process
     pid = fork();
 
     if (pid < 0) {
         exit(EXIT_FAILURE);
     }
 
+    // Exit the parent process
     if (pid > 0) {
         exit(EXIT_SUCCESS);
     }
 
+    // Change the file mode mask
     umask(0);
 
+    // Create a new SID for the child process
     sid = setsid();
     if (sid < 0) {
         exit(EXIT_FAILURE);
     }
 
+    // Change the current working directory
     if ((chdir("/")) < 0) {
         exit(EXIT_FAILURE);
     }
 
+    // Close out the standard file descriptors
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
@@ -68,11 +75,12 @@ int main() {
     while (1) {
         struct stat buffer;
         if (stat(stop_file, &buffer) == 0) {
-            break; 
+            break; // Stop the daemon if stop.trash file exists
         }
 
         delete_trash_files(trash_dir);
 
+        // Sleep for 30 seconds
         sleep(30);
     }
 
