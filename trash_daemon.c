@@ -1,88 +1,79 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <dirent.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
 
-// Fungsi untuk menghapus file dengan ekstensi .trash di direktori /tmp/trash
-void delete_trash_files(const char *path) {
-    struct dirent *entry;
-    DIR *dp = opendir(path);
+#define PATH "/tmp/trash"
+#define EXTENSION ".trash"
+#define STOP_FILE "stop.trash"
 
-    if (dp == NULL) {
-        perror("opendir");
-        return;
-    }
-
-    while ((entry = readdir(dp))) {
-        if (entry->d_type == DT_REG) {
-            const char *ext = strrchr(entry->d_name, '.');
-            if (ext && strcmp(ext, ".trash") == 0) {
-                char full_path[256];
-                snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-                if (remove(full_path) == 0) {
-                    printf("Deleted %s\n", full_path);
-                } else {
-                    perror("remove");
-                }
-            }
-        }
-    }
-
-    closedir(dp);
-}
+void delete_trash_files();
+int file_exists(const char *filename);
 
 int main() {
-    pid_t pid, sid;
-
-    // Fork the process
-    pid = fork();
-
+    // Buat child process dan tutup file descriptor stdin, stdout, stderr
+    pid_t pid = fork();
     if (pid < 0) {
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Fork failed.\n");
+        exit(1);
+    } else if (pid > 0) {
+        exit(0);
     }
 
-    // Exit the parent process
-    if (pid > 0) {
-        exit(EXIT_SUCCESS);
-    }
-
-    // Change the file mode mask
-    umask(0);
-
-    // Create a new SID for the child process
-    sid = setsid();
-    if (sid < 0) {
-        exit(EXIT_FAILURE);
-    }
-
-    // Change the current working directory
-    if ((chdir("/")) < 0) {
-        exit(EXIT_FAILURE);
-    }
-
-    // Close out the standard file descriptors
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
 
-    const char *trash_dir = "/tmp/trash";
-    const char *stop_file = "/tmp/trash/stop.trash";
-
     while (1) {
-        struct stat buffer;
-        if (stat(stop_file, &buffer) == 0) {
-            break; // Stop the daemon if stop.trash file exists
-        }
-
-        delete_trash_files(trash_dir);
-
-        // Sleep for 30 seconds
+        delete_trash_files();
         sleep(30);
     }
 
-    exit(EXIT_SUCCESS);
+    return 0;
+}
+
+void delete_trash_files() {
+    DIR *directory = opendir(PATH);
+
+    if (directory) {
+        struct dirent *entry;
+        struct stat file_stat;
+
+        while ((entry = readdir(directory)) != NULL) {
+            // Cek apakah file memiliki ekstensi .trash
+            if (strstr(entry->d_name, EXTENSION) != NULL) {
+                char path[100];
+                snprintf(path, sizeof(path), "%s/%s", PATH, entry->d_name);
+
+                if (stat(path, &file_stat) == 0 && S_ISREG(file_stat.st_mode)) {
+                    // Cek apakah file stop.trash tidak ada
+                    if (!file_exists(STOP_FILE)) {
+                        if (remove(path) == 0) {
+                            printf("Deleted file: %s\n", path);
+                        } else {
+                            fprintf(stderr, "Failed to delete file: %s\n", path);
+                        }
+                    }
+                }
+            }
+        }
+
+        closedir(directory);
+    }
+}
+
+int file_exists(const char *filename) {
+    int exists = 0;
+    FILE *file = fopen(filename, "rb");
+
+    if (file != NULL) {
+        exists = 1;
+        fclose(file);
+    }
+
+    return exists;
 }
