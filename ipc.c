@@ -1,50 +1,28 @@
-#include <stdio.h>
+#include <stdio.h> 
+#include <unistd.h> 
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <string.h>
 
-#define SHMSZ 27
+#define MSGSIZE 16 
+char* msg1 = "hello, world #1"; 
+char* msg2 = "hello, world #2"; 
+char* msg3 = "hello, world #3"; 
 
-int main() {
-    int shmid;
-    key_t key;
-    char *shm, *s;
+int main() 
+{ 
+	char inbuf[MSGSIZE]; 
+	int p[2], i; 
 
-    // Menghasilkan key
-    key = 5678;
+	if (pipe(p) < 0) 
+		exit(1); 
 
-    // Membuat shared memory
-    if ((shmid = shmget(key, SHMSZ, IPC_CREAT | 0666)) < 0) {
-        perror("shmget");
-        exit(1);
-    }
+	write(p[1], msg1, MSGSIZE); 
+	write(p[1], msg2, MSGSIZE); 
+	write(p[1], msg3, MSGSIZE); 
 
-    // Melekatkan shared memory
-    if ((shm = shmat(shmid, NULL, 0)) == (char *) -1) {
-        perror("shmat");
-        exit(1);
-    }
-
-    // Menuliskan pesan ke shared memory
-    strcpy(shm, "Hello, World!");
-
-    // Menunggu proses lain membaca shared memory
-    while (*shm != '*')
-        sleep(1);
-
-    printf("Data yang dibaca dari shared memory: %s\n", shm);
-
-    // Melepas shared memory
-    if (shmdt(shm) == -1) {
-        perror("shmdt");
-        exit(1);
-    }
-
-    // Menghapus shared memory
-    shmctl(shmid, IPC_RMID, NULL);
-
-    return 0;
-}
+	for (i = 0; i < 3; i++) { 
+		
+		read(p[0], inbuf, MSGSIZE); 
+		printf("%s\n", inbuf); 
+	} 
+	return 0; 
+} 
